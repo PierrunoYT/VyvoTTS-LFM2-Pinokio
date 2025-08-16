@@ -5,7 +5,7 @@ module.exports = {
       method: "shell.run",
       params: {
         message: [
-          "git clone https://huggingface.co/spaces/Vyvo/VyvoTTS-LFM2 app",
+          "git clone https://huggingface.co/spaces/PierrunoYT/VyvoTTS-LFM2 app",
         ]
       }
     },
