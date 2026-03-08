@@ -8,7 +8,7 @@ module.exports = {
     method: "shell.run",
     params: {
       path: "app",
-      message: "git pull"
+      message: "if [ -d .git ]; then git pull; else echo \"app not found or not a git repo; skipping app update.\"; fi"
     }
   }]
 }
