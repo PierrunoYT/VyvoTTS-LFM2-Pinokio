@@ -3,7 +3,7 @@ module.exports = {
   version: "1.0.0",
   title: "VyvoTTS LFM2",
   description: "High-quality Text-to-Speech powered by VyvoTTS LFM2 model with easy-to-use web interface",
-  icon: "icon.png",
+  icon: "icon.jpg",
   menu: async (kernel, info) => {
     let installed = info.exists("app/env")
     let running = {
