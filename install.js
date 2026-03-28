@@ -5,7 +5,7 @@ module.exports = {
       method: "shell.run",
       params: {
         message: [
-          "git clone https://huggingface.co/spaces/PierrunoYT/VyvoTTS-LFM2 app",
+          "if [ -d app/.git ]; then echo \"App already cloned; skipping clone.\"; elif [ -d app ]; then echo \"app exists but is not a git repository.\"; exit 1; else git clone https://huggingface.co/spaces/PierrunoYT/VyvoTTS-LFM2 app; fi"
         ]
       }
     },
