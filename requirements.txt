@@ -1,0 +1,6 @@
+snac
+python-dotenv
+transformers
+accelerate
+huggingface_hub
+gradio

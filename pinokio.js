@@ -1,11 +1,11 @@
 const path = require('path')
 module.exports = {
-  version: "1.0.0",
+  version: "5.0",
   title: "VyvoTTS LFM2",
   description: "High-quality Text-to-Speech powered by VyvoTTS LFM2 model with easy-to-use web interface",
   icon: "icon.jpg",
   menu: async (kernel, info) => {
-    let installed = info.exists("app/env")
+    let installed = info.exists("env")
     let running = {
       install: info.running("install.js"),
       start: info.running("start.js"),
