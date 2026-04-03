@@ -5,12 +5,13 @@ module.exports = {
       method: "shell.run",
       params: {
         venv: "env",
+        path: "app",
         message: [
           "python app.py",
         ],
         on: [{
-          "event": "/(http:\\/\\/\\S+)/",
-          "done": true
+          event: "/(http:\\/\\/[0-9.:]+)/",
+          done: true
         }]
       }
     },

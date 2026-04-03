@@ -36,9 +36,6 @@ ENV/
 models/
 checkpoints/
 
-# App folder (if cloned)
-app/
-
 # Hugging Face Cache
 .cache/
 huggingface/
