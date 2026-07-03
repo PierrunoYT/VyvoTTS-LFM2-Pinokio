@@ -98,7 +98,7 @@ console.log(result.data); // [sample_rate, audio_data]
 curl -X POST http://127.0.0.1:7860/run/predict \
   -H "Content-Type: application/json" \
   -d '{
-    "fn_index": 0,
+    "fn_index": 4,
     "data": [
       "Hello! This is a speech synthesis demo.",
       "Jenny",
@@ -109,6 +109,8 @@ curl -X POST http://127.0.0.1:7860/run/predict \
     ]
   }'
 ```
+
+`fn_index` reflects the position in which event handlers are registered in `app.py` (the example buttons are registered before the generate button, making `generate_speech` index `4`). If the UI changes, verify the correct index via the app's `/config` endpoint, or prefer the Python/JavaScript clients above, which target the stable `api_name` instead.
 
 The response contains a `data` array with the audio output as a base64-encoded WAV file or a numpy array depending on the Gradio version.
 
