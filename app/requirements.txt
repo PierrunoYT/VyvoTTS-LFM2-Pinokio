@@ -1,6 +1,6 @@
 snac
 python-dotenv
-transformers
+transformers>=4.55.4,<5
 accelerate
 huggingface_hub
-gradio
+gradio>=5.49.1,<6

@@ -37,6 +37,10 @@ Converts text to natural-sounding speech using LFM2 language models fine-tuned o
 4. Enter your text, pick a voice model, and click **Generate Speech**.
 5. Optionally expand **Advanced Settings** to tune Temperature, Top P, Repetition Penalty, and Maximum Length.
 
+The first generation downloads the selected voice and SNAC audio decoder from Hugging Face. Later runs reuse the cache. Generation uses CUDA/ROCm when PyTorch reports a compatible device, and otherwise uses CPU (including Windows AMD and macOS). Requests run one at a time because voices share model memory.
+
+**Update** pulls launcher/app changes and reruns dependency installation. **Reset** removes the Python environment; it retains the shared Hugging Face model cache. Existing installations from before the installation-completion check must run **Install** once to enable **Start** again. A failed installation keeps **Install** available for retry.
+
 ### Advanced Settings
 
 | Parameter | Default | Description |
@@ -69,7 +73,7 @@ result = client.predict(
     api_name="/generate_speech"
 )
 
-# result is a tuple: (sample_rate, numpy_array)
+# result is the local path of the downloaded audio file.
 print(result)
 ```
 
@@ -89,16 +93,15 @@ const result = await client.predict("/generate_speech", {
   max_new_tokens: 2000,
 });
 
-console.log(result.data); // [sample_rate, audio_data]
+console.log(result.data[0]); // Audio file metadata, including its URL.
 ```
 
 ### curl
 
 ```bash
-curl -X POST http://127.0.0.1:7860/run/predict \
+curl -X POST http://127.0.0.1:7860/gradio_api/call/generate_speech \
   -H "Content-Type: application/json" \
   -d '{
-    "fn_index": 4,
     "data": [
       "Hello! This is a speech synthesis demo.",
       "Jenny",
@@ -110,9 +113,26 @@ curl -X POST http://127.0.0.1:7860/run/predict \
   }'
 ```
 
-`fn_index` reflects the position in which event handlers are registered in `app.py` (the example buttons are registered before the generate button, making `generate_speech` index `4`). If the UI changes, verify the correct index via the app's `/config` endpoint, or prefer the Python/JavaScript clients above, which target the stable `api_name` instead.
+The POST returns an `event_id`. Replace `<EVENT_ID>` below with that value, then fetch the result stream:
 
-The response contains a `data` array with the audio output as a base64-encoded WAV file or a numpy array depending on the Gradio version.
+```bash
+curl -N http://127.0.0.1:7860/gradio_api/call/generate_speech/<EVENT_ID>
+```
+
+The `complete` event contains an array with audio file metadata, including a downloadable `url`. Failures produce an error event. The HTTP API serializes audio as a file; the Python callback's `(sample_rate, numpy_array)` tuple is internal to the app. See the [Gradio cURL guide](https://www.gradio.app/guides/querying-gradio-apps-with-curl) for the two-request flow.
+
+Replace `7860` in all examples with the port printed by your running app. Install `gradio_client` for Python or `@gradio/client` for JavaScript before using those examples.
+
+## Development checks
+
+```bash
+python -m unittest discover -s tests -v
+node --test tests/launchers.test.js
+```
+
+These offline tests mock ML downloads and Gradio for Python logic tests, and simulate Pinokio menu/platform states. They do not verify model quality or GPU inference. Installation also checks dependency consistency and imports the ML/UI libraries before enabling Start.
+
+With the app dependencies installed, run `python tests/smoke_runtime.py` to check real LFM2 CPU execution, SNAC decoding, and the Gradio client/cURL endpoint flow. This starts a temporary loopback server and uses a tiny random codec and synthetic tokens, without downloading voice weights.
 
 ---
 

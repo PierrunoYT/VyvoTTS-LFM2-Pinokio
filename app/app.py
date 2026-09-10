@@ -339,4 +339,4 @@ with gr.Blocks(title="VyvoTTS LFM2", theme=gr.themes.Soft()) as demo:
 
 # Launch the app
 if __name__ == "__main__":
-    demo.queue().launch(share=False, ssr_mode=False)
+    demo.queue().launch(server_name="127.0.0.1", share=False, ssr_mode=False)
