@@ -1,4 +1,7 @@
 import gc
+import logging
+import math
+import threading
 from snac import SNAC
 import torch
 import gradio as gr
@@ -44,6 +47,7 @@ MODELS = {
 current_model = None
 current_tokenizer = None
 current_model_choice = None
+generation_lock = threading.Lock()
 
 def load_model_if_needed(model_choice):
     """Load model and tokenizer, unloading previous model if different"""
@@ -109,40 +113,38 @@ def process_prompt(prompt, tokenizer, device):
 
 # Parse output tokens to audio for LFM2
 def parse_output(generated_ids):
-    token_to_find = START_OF_SPEECH
-    token_to_remove = END_OF_SPEECH
-    
-    token_indices = (generated_ids == token_to_find).nonzero(as_tuple=True)
+    """Extract complete SNAC frames from a single generated continuation."""
+    tokens = generated_ids[0].tolist()
+    if START_OF_SPEECH not in tokens:
+        raise ValueError("The model did not generate speech tokens. Try different text or settings.")
+    tokens = tokens[tokens.index(START_OF_SPEECH) + 1:]
+    if END_OF_SPEECH in tokens:
+        tokens = tokens[:tokens.index(END_OF_SPEECH)]
+    # A length-limited generation can end part way through a seven-code frame.
+    tokens = tokens[:len(tokens) // 7 * 7]
+    if not tokens:
+        raise ValueError("The model did not generate a complete audio frame. Increase Maximum Length.")
+    codes = [token - AUDIO_TOKENS_START for token in tokens]
+    validate_codes(codes)
+    return codes
 
-    if len(token_indices[1]) > 0:
-        last_occurrence_idx = token_indices[1][-1].item()
-        cropped_tensor = generated_ids[:, last_occurrence_idx+1:]
-    else:
-        cropped_tensor = generated_ids
 
-    processed_rows = []
-    for row in cropped_tensor:
-        masked_row = row[row != token_to_remove]
-        processed_rows.append(masked_row)
-
-    code_lists = []
-    for row in processed_rows:
-        row_length = row.size(0)
-        new_length = (row_length // 7) * 7
-        trimmed_row = row[:new_length]
-        trimmed_row = [t - AUDIO_TOKENS_START for t in trimmed_row]
-        code_lists.append(trimmed_row)
-        
-    return code_lists[0]  # Return just the first one for single sample
+def validate_codes(codes):
+    if not codes or len(codes) % 7:
+        raise ValueError("Audio codes must contain complete seven-code frames.")
+    for i, code in enumerate(codes):
+        if not 0 <= code - (i % 7) * 4096 < 4096:
+            raise ValueError("The model generated invalid audio tokens. Try generating again.")
 
 # Redistribute codes for audio generation
 def redistribute_codes(code_list, snac_model):
+    validate_codes(code_list)
     device = next(snac_model.parameters()).device  # Get the device of SNAC model
     
     layer_1 = []
     layer_2 = []
     layer_3 = []
-    for i in range((len(code_list)+1)//7):
+    for i in range(len(code_list)//7):
         layer_1.append(code_list[7*i])
         layer_2.append(code_list[7*i+1]-4096)
         layer_3.append(code_list[7*i+2]-(2*4096))
@@ -153,19 +155,38 @@ def redistribute_codes(code_list, snac_model):
         
     # Move tensors to the same device as the SNAC model
     codes = [
-        torch.tensor(layer_1, device=device).unsqueeze(0),
-        torch.tensor(layer_2, device=device).unsqueeze(0),
-        torch.tensor(layer_3, device=device).unsqueeze(0)
+        torch.tensor(layer_1, device=device, dtype=torch.int64).unsqueeze(0),
+        torch.tensor(layer_2, device=device, dtype=torch.int64).unsqueeze(0),
+        torch.tensor(layer_3, device=device, dtype=torch.int64).unsqueeze(0)
     ]
     
-    audio_hat = snac_model.decode(codes)
+    with torch.inference_mode():
+        audio_hat = snac_model.decode(codes)
     return audio_hat.detach().squeeze().cpu().numpy()  # Always return CPU numpy array
 
 # Main generation function
 def generate_speech(text, model_choice, temperature, top_p, repetition_penalty, max_new_tokens, progress=gr.Progress()):
-    if not text.strip():
-        return None
-    
+    if not isinstance(text, str) or not text.strip():
+        raise gr.Error("Enter some text to generate speech.")
+    if model_choice not in MODELS:
+        raise gr.Error("Select a valid voice model.")
+    for name, value, minimum, maximum in (
+        ("Temperature", temperature, 0.1, 1.5),
+        ("Top P", top_p, 0.1, 1.0),
+        ("Repetition Penalty", repetition_penalty, 1.0, 2.0),
+        ("Maximum Length", max_new_tokens, 100, 2000),
+    ):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not minimum <= value <= maximum:
+            raise gr.Error(f"{name} must be between {minimum} and {maximum}.")
+    if int(max_new_tokens) != max_new_tokens:
+        raise gr.Error("Maximum Length must be a whole number.")
+    # Protect the shared voice cache even for callers outside Gradio's queue.
+    with generation_lock:
+        return _generate_speech(text, model_choice, temperature, top_p,
+                                repetition_penalty, int(max_new_tokens), progress)
+
+
+def _generate_speech(text, model_choice, temperature, top_p, repetition_penalty, max_new_tokens, progress):
     try:
         progress(0.1, "Loading model and processing text...")
         model, tokenizer = load_model_if_needed(model_choice)
@@ -188,21 +209,23 @@ def generate_speech(text, model_choice, temperature, top_p, repetition_penalty, 
             )
         
         progress(0.6, "Processing speech tokens...")
-        code_list = parse_output(generated_ids)
+        code_list = parse_output(generated_ids[:, input_ids.shape[1]:])
         
         progress(0.8, "Converting to audio...")
         audio_samples = redistribute_codes(code_list, load_snac_if_needed())
         
         progress(1.0, "Completed!")
 
+        return (24000, audio_samples)
+    except ValueError as e:
+        raise gr.Error(str(e)) from e
+    except Exception as e:
+        logging.exception("Error generating speech")
+        raise gr.Error("Speech generation failed. Check the terminal for details and try again.") from e
+    finally:
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-
-        return (24000, audio_samples)
-    except Exception as e:
-        print(f"Error generating speech: {e}")
-        return None
 
 # Example texts
 EXAMPLE_TEXTS = [
@@ -300,7 +323,9 @@ with gr.Blocks(title="VyvoTTS LFM2", theme=gr.themes.Soft()) as demo:
         fn=generate_speech,
         inputs=[text_input, model_choice, temperature, top_p, repetition_penalty, max_new_tokens],
         outputs=audio_output,
-        show_progress=True
+        show_progress="full",
+        api_name="generate_speech",
+        concurrency_limit=1
     )
     
     def clear_interface():
