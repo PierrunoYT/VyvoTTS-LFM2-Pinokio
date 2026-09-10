@@ -7,9 +7,18 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 # Check if CUDA is available
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-print("Loading SNAC model...")
-snac_model = SNAC.from_pretrained("hubertsiuzdak/snac_24khz")
-snac_model = snac_model.to(device)
+snac_model = None
+
+
+def load_snac_if_needed():
+    """Delay the download until generation, so startup works offline."""
+    global snac_model
+    if snac_model is None:
+        print("Loading SNAC model...")
+        model = SNAC.from_pretrained("hubertsiuzdak/snac_24khz")
+        model = model.to(device).eval()
+        snac_model = model
+    return snac_model
 
 # Available models - LFM2 models
 MODELS = {
@@ -40,20 +49,32 @@ def load_model_if_needed(model_choice):
     """Load model and tokenizer, unloading previous model if different"""
     global current_model, current_tokenizer, current_model_choice
     
-    if current_model_choice != model_choice:
+    if model_choice not in MODELS:
+        raise ValueError("Select a valid voice model.")
+
+    if current_model_choice != model_choice or current_model is None or current_tokenizer is None:
         # Unload previous model if exists
         if current_model is not None:
             print(f"Unloading previous model: {current_model_choice}")
-            del current_model
-            del current_tokenizer
-            torch.cuda.empty_cache() if torch.cuda.is_available() else None
+        current_model = None
+        current_tokenizer = None
+        current_model_choice = None
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         
         # Load new model
         model_name = MODELS[model_choice]
         print(f"Loading {model_choice} model: {model_name}")
-        current_model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16)
-        current_model.to(device)
-        current_tokenizer = AutoTokenizer.from_pretrained(model_name)
+        dtype = torch.float32
+        if device == "cuda":
+            dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+        # Publish the cache only after every loading step succeeds.
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=dtype)
+        model = model.to(device).eval()
+        current_model = model
+        current_tokenizer = tokenizer
         current_model_choice = model_choice
         print(f"{model_choice} model loaded successfully!")
     
@@ -170,7 +191,7 @@ def generate_speech(text, model_choice, temperature, top_p, repetition_penalty, 
         code_list = parse_output(generated_ids)
         
         progress(0.8, "Converting to audio...")
-        audio_samples = redistribute_codes(code_list, snac_model)
+        audio_samples = redistribute_codes(code_list, load_snac_if_needed())
         
         progress(1.0, "Completed!")
 
