@@ -55,9 +55,13 @@ test('install verifies dependencies before writing completion marker', () => {
   assert.equal(steps[0].params.path, 'app/env/.installed')
   const checkIndex = steps.findIndex(step => step.params.message?.includes('uv pip check'))
   assert.ok(checkIndex > steps.findIndex(step => step.params.uri === 'torch.js'))
-  assert.equal(steps.at(-1).method, 'fs.write')
-  assert.equal(steps.at(-1).params.path, 'app/env/.installed')
-  assert.ok(checkIndex < steps.length - 1)
+  // Pinokio continues after failed commands, so the marker must come from the
+  // same && chain, after the checks, rather than from a separate step.
+  assert.equal(checkIndex, steps.length - 1)
+  assert.ok(!steps.some(step => step.method === 'fs.write'))
+  const messages = steps[checkIndex].params.message
+  assert.ok(messages.indexOf('uv pip check') < messages.length - 1)
+  assert.match(messages.at(-1), /import gradio, snac.*Path\('env\/\.installed'\)\.write_text/)
   assert.equal(require('../reset.js').run[0].params.path, 'app/env')
 })
 

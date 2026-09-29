@@ -28,15 +28,10 @@ module.exports = {
         message: [
           "uv pip install -r requirements.txt",
           "uv pip check",
-          "python -c \"import gradio, snac; from transformers import Lfm2ForCausalLM\"",
+          // Pinokio chains these with && and ignores exit codes, so only the
+          // final command may write the marker that enables Start.
+          "python -c \"import gradio, snac; from transformers import Lfm2ForCausalLM; from pathlib import Path; Path('env/.installed').write_text('Dependencies installed successfully.')\"",
         ]
-      }
-    },
-    {
-      method: "fs.write",
-      params: {
-        path: "app/env/.installed",
-        text: "Dependencies installed successfully."
       }
     },
   ]
