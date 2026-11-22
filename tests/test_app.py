@@ -67,7 +67,7 @@ class AppTests(unittest.TestCase):
                 self.app.current_model_choice = None
                 self.torch.cuda.is_bf16_supported.return_value = bf16
                 self.app.load_model_if_needed("Jenny")
-                self.assertIs(self.app.AutoModelForCausalLM.from_pretrained.call_args.kwargs["torch_dtype"], expected)
+                self.assertIs(self.app.AutoModelForCausalLM.from_pretrained.call_args.kwargs["dtype"], expected)
 
     def test_snac_load_failure_is_retryable(self):
         self.app.SNAC.from_pretrained.side_effect = RuntimeError("offline")

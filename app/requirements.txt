@@ -1,6 +1,6 @@
 snac
 python-dotenv
-transformers>=4.55.4,<5
+transformers>=4.56,<5
 accelerate
 huggingface_hub
 gradio>=5.49.1,<6

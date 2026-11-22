@@ -75,7 +75,7 @@ def load_model_if_needed(model_choice):
             dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
         # Publish the cache only after every loading step succeeds.
         tokenizer = AutoTokenizer.from_pretrained(model_name)
-        model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=dtype)
+        model = AutoModelForCausalLM.from_pretrained(model_name, dtype=dtype)
         model = model.to(device).eval()
         current_model = model
         current_tokenizer = tokenizer

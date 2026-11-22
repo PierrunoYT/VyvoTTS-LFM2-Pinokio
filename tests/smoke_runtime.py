@@ -45,7 +45,10 @@ def main():
     assert samples.ndim == 1 and samples.size > 0 and np.isfinite(samples).all()
 
     model = SimpleNamespace(generate=lambda **kw: torch.cat([kw["input_ids"], continuation], dim=1))
-    tokenizer = lambda *args, **kw: SimpleNamespace(input_ids=torch.tensor([[1, 2, 3]]))
+
+    def tokenizer(*args, **kw):
+        return SimpleNamespace(input_ids=torch.tensor([[1, 2, 3]]))
+
     args = ["Hello", "Jenny", 0.3, 0.95, 1.2, 2000]
     with patch.object(app, "device", "cpu"), \
          patch.object(app, "load_model_if_needed", return_value=(model, tokenizer)), \
