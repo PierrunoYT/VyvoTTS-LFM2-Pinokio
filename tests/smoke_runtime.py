@@ -5,8 +5,8 @@ Run after installing app requirements and CPU PyTorch:
 The small, randomly initialized codec produces test audio, not usable speech.
 """
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 

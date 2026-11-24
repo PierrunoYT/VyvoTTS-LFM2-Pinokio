@@ -1,8 +1,8 @@
 """Offline regression tests; ML downloads and the Gradio UI are mocked."""
 import importlib.util
-from pathlib import Path
 import sys
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 

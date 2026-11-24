@@ -2,9 +2,10 @@ import gc
 import logging
 import math
 import threading
-from snac import SNAC
-import torch
+
 import gradio as gr
+import torch
+from snac import SNAC
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # Check if CUDA is available
