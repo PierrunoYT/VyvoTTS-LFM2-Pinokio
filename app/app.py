@@ -9,6 +9,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # Check if CUDA is available
 device = "cuda" if torch.cuda.is_available() else "cpu"
+logger = logging.getLogger(__name__)
 
 snac_model = None
 
@@ -162,7 +163,10 @@ def redistribute_codes(code_list, snac_model):
     
     with torch.inference_mode():
         audio_hat = snac_model.decode(codes)
-    return audio_hat.detach().squeeze().cpu().numpy()  # Always return CPU numpy array
+    # Encode 16-bit PCM here; Gradio would otherwise peak-normalize float audio
+    # (amplifying near-silent output to full scale) and warn on every request.
+    pcm = audio_hat.squeeze().clamp(-1.0, 1.0).mul(32767).to(torch.int16)
+    return pcm.cpu().numpy()
 
 # Main generation function
 def generate_speech(text, model_choice, temperature, top_p, repetition_penalty, max_new_tokens, progress=gr.Progress()):
@@ -220,7 +224,7 @@ def _generate_speech(text, model_choice, temperature, top_p, repetition_penalty,
     except ValueError as e:
         raise gr.Error(str(e)) from e
     except Exception as e:
-        logging.exception("Error generating speech")
+        logger.exception("Error generating speech")
         raise gr.Error("Speech generation failed. Check the terminal for details and try again.") from e
     finally:
         gc.collect()

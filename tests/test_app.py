@@ -137,7 +137,7 @@ class AppTests(unittest.TestCase):
     def test_generation_reports_errors_and_runs_cleanup(self):
         with patch.object(self.app, "load_model_if_needed", side_effect=RuntimeError("offline")), \
              patch.object(self.app.gc, "collect") as collect, \
-             patch.object(self.app.logging, "exception"):
+             patch.object(self.app.logger, "exception"):
             with self.assertRaises(self.gradio.Error):
                 self.app.generate_speech("Hello", "Jenny", 0.3, 0.95, 1.2, 2000)
             collect.assert_called_once()

@@ -42,7 +42,7 @@ def main():
     continuation = torch.tensor([[app.START_OF_SPEECH] + frame * 8 + [app.END_OF_SPEECH]])
     codes = app.parse_output(continuation)
     samples = app.redistribute_codes(codes, codec)
-    assert samples.ndim == 1 and samples.size > 0 and np.isfinite(samples).all()
+    assert samples.ndim == 1 and samples.size > 0 and samples.dtype == np.int16
 
     model = SimpleNamespace(generate=lambda **kw: torch.cat([kw["input_ids"], continuation], dim=1))
 
